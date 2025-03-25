@@ -26,10 +26,6 @@ let lastSpeedIncreaseTime = 0; // 上次增加球速的時間
 let brickWidth;
 let brickHeight = 20;
 
-// GitHub Gist 設置
-const GITHUB_TOKEN = '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'; // 您需要在這裡填入您的 GitHub Personal Access Token
-const GIST_ID = 'd5dc1a8dacac3dd06d5213c5a4998532'; // 您需要在這裡填入您創建的 Gist ID
-
 // 磚塊類型
 const BRICK_TYPES = {
     NORMAL: { color: '#0095DD', points: 10, hits: 1 },
@@ -305,8 +301,7 @@ function saveScore() {
         name: playerName,
         score: score,
         level: level,
-        date: new Date().toISOString(),
-        id: Date.now().toString() // 添加唯一ID
+        date: new Date().toISOString()
     };
     
     // 保存到本地先
@@ -315,21 +310,12 @@ function saveScore() {
     // 顯示保存中提示
     showNotification('正在保存分數...', 'info');
     
-    // 嘗試保存到GitHub Gist
-    saveScoreToGist(scoreData)
-        .then(() => {
-            showNotification('分數已成功保存到雲端！', 'success');
-            document.getElementById('gameOverModal').style.display = 'none';
-            // 顯示排行榜
-            setTimeout(showLeaderboard, 500);
-        })
-        .catch(error => {
-            console.error('保存分數到GitHub Gist時發生錯誤:', error);
-            showNotification('保存到雲端失敗，已保存到本地', 'error');
-            document.getElementById('gameOverModal').style.display = 'none';
-            // 顯示排行榜
-            setTimeout(showLeaderboard, 500);
-        });
+    // 嘗試保存到Google Sheets
+    saveScoreToGoogleSheets(scoreData);
+    
+    document.getElementById('gameOverModal').style.display = 'none';
+    // 顯示排行榜
+    setTimeout(showLeaderboard, 500);
 }
 
 // 保存分數到本地
@@ -337,17 +323,17 @@ function saveScoreToLocal(scoreData) {
     let leaderboard = JSON.parse(localStorage.getItem('breakoutLeaderboard')) || [];
     leaderboard.push(scoreData);
     leaderboard.sort((a, b) => b.score - a.score);
-    leaderboard = leaderboard.slice(0, 100); // 保留前100名
+    leaderboard = leaderboard.slice(0, 10); // 只保留前10名
     
     localStorage.setItem('breakoutLeaderboard', JSON.stringify(leaderboard));
 }
 
-// 保存分數到GitHub Gist
-async function saveScoreToGist(scoreData) {
-    if (!GITHUB_TOKEN || !GIST_ID) {
-        throw new Error('缺少GitHub Token或Gist ID');
-    }
-
+// 保存分數到Google Sheets
+function saveScoreToGoogleSheets(scoreData) {
+    // 這裡使用Google Sheets API的Web App URL
+    // 需要替換為你實際部署的Web App URL
+    const googleSheetsURL = 'https://script.google.com/macros/s/AKfycbyV9_r0jBbwyQISPHRKDPlv33qCkQBra40QU4QdxHiitoD9_Fvl0i2qCIdPR_9ZUQyc0g/exec';
+    
     // 顯示保存中動畫
     const savingIndicator = document.createElement('div');
     savingIndicator.className = 'saving-indicator';
@@ -357,79 +343,93 @@ async function saveScoreToGist(scoreData) {
     `;
     document.body.appendChild(savingIndicator);
     
-    try {
-        // 首先獲取當前Gist內容
-        const getResponse = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-            headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`
-            }
-        });
-        
-        if (!getResponse.ok) {
-            throw new Error(`GitHub API錯誤: ${getResponse.status}`);
-        }
-        
-        const gistData = await getResponse.json();
-        const fileName = 'breakout_leaderboard.json';
-        
-        // 解析現有的排行榜數據
-        let leaderboard = [];
-        if (gistData.files && gistData.files[fileName]) {
-            try {
-                leaderboard = JSON.parse(gistData.files[fileName].content || '[]');
-            } catch (e) {
-                console.error('解析Gist內容時出錯:', e);
-                leaderboard = [];
-            }
-        }
-        
-        // 添加新分數
-        leaderboard.push(scoreData);
-        
-        // 按分數排序
-        leaderboard.sort((a, b) => b.score - a.score);
-        
-        // 只保留前100名
-        if (leaderboard.length > 100) {
-            leaderboard = leaderboard.slice(0, 100);
-        }
-        
-        // 更新Gist
-        const updateResponse = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-            method: 'PATCH',
-            headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                files: {
-                    [fileName]: {
-                        content: JSON.stringify(leaderboard, null, 2)
-                    }
-                }
-            })
-        });
-        
-        if (!updateResponse.ok) {
-            throw new Error(`GitHub API錯誤: ${updateResponse.status}`);
-        }
-        
-        console.log('分數已保存到GitHub Gist');
-        
+    fetch(googleSheetsURL, {
+        method: 'POST',
+        mode: 'no-cors', // 重要：解決CORS問題
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            action: 'addScore',
+            data: scoreData
+        })
+    })
+    .then(() => {
+        // 由於no-cors模式，無法讀取response內容
+        console.log('分數已發送到Google Sheets');
+        showNotification('分數已成功保存到雲端！', 'success');
         // 移除保存中動畫
         document.body.removeChild(savingIndicator);
-        
-        return await updateResponse.json();
-    } catch (error) {
-        console.error('保存分數到GitHub Gist時發生錯誤:', error);
-        
+    })
+    .catch(error => {
+        console.error('保存分數到Google Sheets時發生錯誤:', error);
+        showNotification('保存到雲端失敗，已保存到本地', 'error');
         // 移除保存中動畫
-        if (document.body.contains(savingIndicator)) {
-            document.body.removeChild(savingIndicator);
-        }
-        
-        throw error;
-    }
+        document.body.removeChild(savingIndicator);
+    });
+}
+// 从Google Sheets读取排行榜数据
+function loadLeaderboardFromGoogleSheets() {
+    // 这里使用Google Sheets API的Web App URL
+    const googleSheetsURL = 'https://script.google.com/macros/s/AKfycbyV9_r0jBbwyQISPHRKDPlv33qCkQBra40QU4QdxHiitoD9_Fvl0i2qCIdPR_9ZUQyc0g/exec';
+    
+    // 显示加载中动画
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = `
+        <div class="spinner"></div>
+        <p>正在从云端加载数据...</p>
+    `;
+    document.body.appendChild(loadingIndicator);
+    
+    // 设置超时处理
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('请求超时')), 10000); // 10秒超时
+    });
+    
+    // 实际的fetch请求
+    const fetchPromise = fetch(googleSheetsURL + '?action=getScores', {
+        method: 'GET',
+        mode: 'cors' // 尝试使用cors模式
+    });
+    
+    // 使用Promise.race来处理可能的超时情况
+    Promise.race([fetchPromise, timeoutPromise])
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('从Google Sheets读取排行榜成功:', data);
+            // 合并本地和云端数据
+            const localLeaderboard = JSON.parse(localStorage.getItem('breakoutLeaderboard')) || [];
+            const combinedLeaderboard = [...localLeaderboard, ...data];
+            // 去重（基于名称和分数）
+            const uniqueLeaderboard = Array.from(new Map(combinedLeaderboard.map(item => [
+                item.name + '-' + item.score, item
+            ])).values());
+            
+            displayLeaderboard(uniqueLeaderboard);
+            // 移除加载中动画
+            document.body.removeChild(loadingIndicator);
+        })
+        .catch(error => {
+            console.error('从Google Sheets读取排行榜时发生错误:', error);
+            // 已经显示本地数据，所以这里只需添加错误提示
+            const leaderboardList = document.getElementById('leaderboardList');
+            if (leaderboardList.innerHTML.includes('尝试从云端加载更多数据')) {
+                leaderboardList.innerHTML = leaderboardList.innerHTML.replace(
+                    '<div style="text-align: center; padding: 10px; color: #aaa;">尝试从云端加载更多数据...</div>',
+                    '<div style="text-align: center; padding: 10px; color: #f77;">无法从云端加载数据，仅显示本地记录</div>'
+                );
+            }
+            // 移除加载中动画
+            if (document.body.contains(loadingIndicator)) {
+                document.body.removeChild(loadingIndicator);
+            }
+        });
 }
 
 // 下一關
@@ -919,24 +919,15 @@ function loadLeaderboard() {
         leaderboardList.innerHTML += '<div style="text-align: center; padding: 10px; color: #aaa;">嘗試從雲端載入更多數據...</div>';
     }
     
-    // 嘗試從GitHub Gist讀取排行榜數據
-    loadLeaderboardFromGist();
+    // 嘗試從Google Sheets讀取排行榜數據
+    loadLeaderboardFromGoogleSheets();
 }
 
-// 從GitHub Gist讀取排行榜數據
-async function loadLeaderboardFromGist() {
-    if (!GITHUB_TOKEN || !GIST_ID) {
-        console.warn('缺少GitHub Token或Gist ID，僅顯示本地數據');
-        const leaderboardList = document.getElementById('leaderboardList');
-        if (leaderboardList.innerHTML.includes('嘗試從雲端載入更多數據')) {
-            leaderboardList.innerHTML = leaderboardList.innerHTML.replace(
-                '<div style="text-align: center; padding: 10px; color: #aaa;">嘗試從雲端載入更多數據...</div>',
-                '<div style="text-align: center; padding: 10px; color: #f77;">未設置GitHub Token或Gist ID，僅顯示本地記錄</div>'
-            );
-        }
-        return;
-    }
-
+// 從Google Sheets讀取排行榜數據
+function loadLeaderboardFromGoogleSheets() {
+    // 這裡使用Google Sheets API的Web App URL
+    const googleSheetsURL = 'https://script.google.com/macros/s/AKfycbzX4HLiKfivX45OUlxJcOLCLoGx0BWzLaSrejitFqxTWrswH5wAi7NaTHq-CbrmFzm4Gg/exec';
+    
     // 顯示載入中動畫
     const loadingIndicator = document.createElement('div');
     loadingIndicator.className = 'loading-indicator';
@@ -946,75 +937,117 @@ async function loadLeaderboardFromGist() {
     `;
     document.body.appendChild(loadingIndicator);
     
-    try {
-        // 設置超時處理
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超時
-        
-        // 獲取Gist內容
-        const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-            signal: controller.signal,
-            headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`
+    // 設置超時處理
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('請求超時')), 10000); // 10秒超時
+    });
+    
+    // 實際的fetch請求
+    const fetchPromise = fetch(googleSheetsURL + '?action=getScores', {
+        method: 'GET',
+        mode: 'cors' // 嘗試使用cors模式
+    });
+    
+    // 使用Promise.race來處理可能的超時情況
+    Promise.race([fetchPromise, timeoutPromise])
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('從Google Sheets讀取排行榜成功:', data);
+            // 合併本地和雲端數據
+            const localLeaderboard = JSON.parse(localStorage.getItem('breakoutLeaderboard')) || [];
+            const combinedLeaderboard = [...localLeaderboard, ...data];
+            // 去重（基於名稱和分數）
+            const uniqueLeaderboard = Array.from(new Map(combinedLeaderboard.map(item => [
+                item.name + '-' + item.score, item
+            ])).values());
+            
+            displayLeaderboard(uniqueLeaderboard);
+            // 移除載入中動畫
+            document.body.removeChild(loadingIndicator);
+        })
+        .catch(error => {
+            console.error('從Google Sheets讀取排行榜時發生錯誤:', error);
+            // 已經顯示本地數據，所以這裡只需添加錯誤提示
+            const leaderboardList = document.getElementById('leaderboardList');
+            if (leaderboardList.innerHTML.includes('嘗試從雲端載入更多數據')) {
+                leaderboardList.innerHTML = leaderboardList.innerHTML.replace(
+                    '<div style="text-align: center; padding: 10px; color: #aaa;">嘗試從雲端載入更多數據...</div>',
+                    '<div style="text-align: center; padding: 10px; color: #f77;">無法從雲端載入數據，僅顯示本地記錄</div>'
+                );
+            }
+            // 移除載入中動畫
+            if (document.body.contains(loadingIndicator)) {
+                document.body.removeChild(loadingIndicator);
             }
         });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-            throw new Error(`GitHub API錯誤: ${response.status}`);
-        }
-        
-        const gistData = await response.json();
-        const fileName = 'breakout_leaderboard.json';
-        
-        // 解析Gist內容
-        let cloudLeaderboard = [];
-        if (gistData.files && gistData.files[fileName]) {
-            try {
-                cloudLeaderboard = JSON.parse(gistData.files[fileName].content || '[]');
-            } catch (e) {
-                console.error('解析Gist內容時出錯:', e);
-                cloudLeaderboard = [];
+}
+// 从Google Sheets读取排行榜数据
+function loadLeaderboardFromGoogleSheets() {
+    // 这里使用Google Sheets API的Web App URL
+    const googleSheetsURL = 'https://script.google.com/macros/s/AKfycbx-VZwTura2Ye3egNIrMYVcoXbysyAthSERzAHLUr0yyiQVfxzS25ma6ZgbUIVrG9277g/exec';
+    
+    // 显示加载中动画
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'loading-indicator';
+    loadingIndicator.innerHTML = `
+        <div class="spinner"></div>
+        <p>正在从云端加载数据...</p>
+    `;
+    document.body.appendChild(loadingIndicator);
+    
+    // 设置超时处理
+    const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('请求超时')), 10000); // 10秒超时
+    });
+    
+    // 实际的fetch请求
+    const fetchPromise = fetch(googleSheetsURL + '?action=getScores', {
+        method: 'GET',
+        mode: 'cors' // 尝试使用cors模式
+    });
+    
+    // 使用Promise.race来处理可能的超时情况
+    Promise.race([fetchPromise, timeoutPromise])
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
             }
-        }
-        
-        console.log('從GitHub Gist讀取排行榜成功:', cloudLeaderboard);
-        
-        // 合併本地和雲端數據
-        const localLeaderboard = JSON.parse(localStorage.getItem('breakoutLeaderboard')) || [];
-        const combinedLeaderboard = [...localLeaderboard, ...cloudLeaderboard];
-        
-        // 去重（基於ID或名稱和分數的組合）
-        const uniqueLeaderboard = Array.from(new Map(combinedLeaderboard.map(item => [
-            item.id || (item.name + '-' + item.score + '-' + item.date), item
-        ])).values());
-        
-        // 排序
-        uniqueLeaderboard.sort((a, b) => b.score - a.score);
-        
-        // 顯示排行榜
-        displayLeaderboard(uniqueLeaderboard);
-        
-        // 移除載入中動畫
-        document.body.removeChild(loadingIndicator);
-    } catch (error) {
-        console.error('從GitHub Gist讀取排行榜時發生錯誤:', error);
-        
-        // 已經顯示本地數據，所以這裡只需添加錯誤提示
-        const leaderboardList = document.getElementById('leaderboardList');
-        if (leaderboardList.innerHTML.includes('嘗試從雲端載入更多數據')) {
-            leaderboardList.innerHTML = leaderboardList.innerHTML.replace(
-                '<div style="text-align: center; padding: 10px; color: #aaa;">嘗試從雲端載入更多數據...</div>',
-                `<div style="text-align: center; padding: 10px; color: #f77;">無法從雲端載入數據: ${error.message}</div>`
-            );
-        }
-        
-        // 移除載入中動畫
-        if (document.body.contains(loadingIndicator)) {
+            return response.json();
+        })
+        .then(data => {
+            console.log('从Google Sheets读取排行榜成功:', data);
+            // 合并本地和云端数据
+            const localLeaderboard = JSON.parse(localStorage.getItem('breakoutLeaderboard')) || [];
+            const combinedLeaderboard = [...localLeaderboard, ...data];
+            // 去重（基于名称和分数）
+            const uniqueLeaderboard = Array.from(new Map(combinedLeaderboard.map(item => [
+                item.name + '-' + item.score, item
+            ])).values());
+            
+            displayLeaderboard(uniqueLeaderboard);
+            // 移除加载中动画
             document.body.removeChild(loadingIndicator);
-        }
-    }
+        })
+        .catch(error => {
+            console.error('从Google Sheets读取排行榜时发生错误:', error);
+            // 已经显示本地数据，所以这里只需添加错误提示
+            const leaderboardList = document.getElementById('leaderboardList');
+            if (leaderboardList.innerHTML.includes('尝试从云端加载更多数据')) {
+                leaderboardList.innerHTML = leaderboardList.innerHTML.replace(
+                    '<div style="text-align: center; padding: 10px; color: #aaa;">尝试从云端加载更多数据...</div>',
+                    '<div style="text-align: center; padding: 10px; color: #f77;">无法从云端加载数据，仅显示本地记录</div>'
+                );
+            }
+            // 移除加载中动画
+            if (document.body.contains(loadingIndicator)) {
+                document.body.removeChild(loadingIndicator);
+            }
+        });
 }
 
 // 顯示排行榜
