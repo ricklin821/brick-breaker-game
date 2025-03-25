@@ -27,7 +27,7 @@ let brickWidth;
 let brickHeight = 20;
 
 // GitHub Gist 設置
-const GITHUB_TOKEN = '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'; // 您需要在這裡填入您的 GitHub Personal Access Token
+const GITHUB_TOKEN = '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'; // 您需要在這裡填入您的 GitHub Personal Access Token
 const GIST_ID = 'd5dc1a8dacac3dd06d5213c5a4998532'; // 您需要在這裡填入您創建的 Gist ID
 
 // 磚塊類型
