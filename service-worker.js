@@ -1,13 +1,23 @@
 // 服務工作線程 - 提供PWA的離線功能和緩存
 
-const CACHE_NAME = 'breakout-game-v1';
+const CACHE_NAME = 'breakout-game-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './game.js',
+  './pwa.js',
   './pwa.css',
   './manifest.json',
-  './google_sheet_script.js'
+  './google_sheet_script.js',
+  './icons/icon-72x72.png',
+  './icons/icon-96x96.png',
+  './icons/icon-128x128.png',
+  './icons/icon-144x144.png',
+  './icons/icon-152x152.png',
+  './icons/icon-192x192.png',
+  './icons/icon-384x384.png',
+  './icons/icon-512x512.png',
+  './icons/icon.svg'
 ];
 
 // 安裝事件 - 緩存核心資源

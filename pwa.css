@@ -79,3 +79,22 @@
     from { transform: translate(-50%, 20px); opacity: 0; }
     to { transform: translate(-50%, 0); opacity: 1; }
 }
+
+/* PWA安裝提示樣式 */
+.pwa-install-hint {
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: 10px;
+    padding: 15px;
+    margin: 15px auto;
+    max-width: 480px;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    border-left: 4px solid #FF9800;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.pwa-install-hint p {
+    margin: 0;
+    font-size: 1rem;
+    color: #fff;
+}
