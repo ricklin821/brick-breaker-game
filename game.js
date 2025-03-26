@@ -37,24 +37,28 @@ const BRICK_TYPES = {
 
 // 藥丸類型
 const POWERUP_TYPES = [
-    { type: 'extraLife', color: '#00FF00', effect: () => { lives++; showNotification('獲得額外生命！', 'success'); } },
-    { type: 'expandPaddle', color: '#FFFF00', effect: () => { paddleWidth = Math.min(paddleWidth * 1.5, 150); showNotification('球拍變大！', 'success'); } },
-    { type: 'shrinkPaddle', color: '#FF00FF', effect: () => { paddleWidth = Math.max(paddleWidth * 0.75, 50); showNotification('球拍變小！', 'error'); } },
-    { type: 'slowBall', color: '#00FFFF', effect: () => { 
+    { type: 'extraLife', color: '#00FF00', points: 50, effect: () => { lives++; showNotification('獲得額外生命！+50分', 'success'); score += 50; updateScoreDisplay(); } },
+    { type: 'expandPaddle', color: '#FFFF00', points: 30, effect: () => { paddleWidth = Math.min(paddleWidth * 1.5, 150); showNotification('球拍變大！+30分', 'success'); score += 30; updateScoreDisplay(); } },
+    { type: 'shrinkPaddle', color: '#FF00FF', points: 20, effect: () => { paddleWidth = Math.max(paddleWidth * 0.75, 50); showNotification('球拍變小！+20分', 'error'); score += 20; updateScoreDisplay(); } },
+    { type: 'slowBall', color: '#00FFFF', points: 40, effect: () => { 
         balls.forEach(ball => {
             ball.dx = ball.dx > 0 ? Math.max(ball.dx * 0.75, 2) : Math.min(ball.dx * 0.75, -2);
             ball.dy = ball.dy > 0 ? Math.max(ball.dy * 0.75, 2) : Math.min(ball.dy * 0.75, -2);
         });
-        showNotification('球速減慢！', 'success');
+        showNotification('球速減慢！+40分', 'success');
+        score += 40;
+        updateScoreDisplay();
     } },
-    { type: 'fastBall', color: '#FF8800', effect: () => { 
+    { type: 'fastBall', color: '#FF8800', points: 60, effect: () => { 
         balls.forEach(ball => {
             ball.dx = ball.dx > 0 ? Math.min(ball.dx * 1.25, 8) : Math.max(ball.dx * 1.25, -8);
             ball.dy = ball.dy > 0 ? Math.min(ball.dy * 1.25, 8) : Math.max(ball.dy * 1.25, -8);
         });
-        showNotification('球速增加！', 'error');
+        showNotification('球速增加！+60分', 'error');
+        score += 60;
+        updateScoreDisplay();
     } },
-    { type: 'multiBall', color: '#8800FF', effect: () => { 
+    { type: 'multiBall', color: '#8800FF', points: 70, effect: () => { 
         const currentBalls = [...balls];
         currentBalls.forEach(ball => {
             for (let i = 0; i < 2; i++) {
@@ -70,7 +74,9 @@ const POWERUP_TYPES = [
                 balls.push(newBall);
             }
         });
-        showNotification('多重球！', 'success');
+        showNotification('多重球！+70分', 'success');
+        score += 70;
+        updateScoreDisplay();
     } }
 ];
 
@@ -118,11 +124,41 @@ function initGame() {
     document.removeEventListener('keydown', keyDownHandler);
     document.removeEventListener('keyup', keyUpHandler);
     document.removeEventListener('mousemove', mouseMoveHandler);
+    canvas.removeEventListener('touchmove', touchMoveHandler);
+    canvas.removeEventListener('touchstart', touchStartHandler);
+    document.removeEventListener('touchend', touchEndHandler);
     
     // 添加新的事件監聽器
     document.addEventListener('keydown', keyDownHandler, false);
     document.addEventListener('keyup', keyUpHandler, false);
     document.addEventListener('mousemove', mouseMoveHandler, false);
+    
+    // 添加觸控事件支持 - 優化移動設備體驗
+    canvas.addEventListener('touchmove', touchMoveHandler, { passive: false });
+    canvas.addEventListener('touchstart', touchStartHandler, { passive: false });
+    document.addEventListener('touchend', touchEndHandler, false);
+    
+    // 檢測是否為移動設備
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // 如果是移動設備，添加額外的觸控優化
+    if (isMobileDevice) {
+        // 顯示觸控提示
+        const touchHint = document.getElementById('touchHint');
+        if (touchHint) {
+            touchHint.style.display = 'block';
+        }
+        
+        // 調整遊戲元素大小以適應觸控
+        paddleWidth = 85; // 稍微增加球拍寬度，使其更容易操作
+        ballRadius = 9;   // 稍微增大球的大小
+    } else {
+        // 在非移動設備上隱藏觸控提示
+        const touchHint = document.getElementById('touchHint');
+        if (touchHint) {
+            touchHint.style.display = 'none';
+        }
+    }
     
     // 移除按鈕的現有事件監聽器（如果有）
     const startButton = document.getElementById('startButton');
@@ -164,8 +200,30 @@ function resizeCanvas() {
     canvas.style.maxWidth = '100%';
     canvas.style.height = 'auto';
     
+    // 在小螢幕上調整球拍和球的大小
+    if (containerWidth <= 480) {
+        // 在小螢幕上增加球拍寬度，使其更容易操作
+        paddleWidth = Math.min(85, maxWidth / 5); // 適當增加球拍寬度
+        // 球的半徑也稍微調整
+        ballRadius = 9; // 稍微增大球的大小
+    } else {
+        // 在大螢幕上使用原始大小
+        paddleWidth = 75;
+        ballRadius = 8;
+    }
+    
+    // 重新定位球拍
+    paddleX = (canvas.width - paddleWidth) / 2;
+    
     // 調整磚塊大小
     adjustBricksByLevel();
+    
+    // 顯示或隱藏觸控提示
+    const touchHint = document.getElementById('touchHint');
+    if (touchHint) {
+        // 在小螢幕上顯示觸控提示
+        touchHint.style.display = containerWidth <= 480 ? 'block' : 'none';
+    }
 }
 
 
@@ -435,12 +493,17 @@ function loadLeaderboardFromGoogleSheets() {
 // 下一關
 function nextLevel() {
     level++;
+    
+    // 根據關卡增加分數獎勵
+    const levelBonus = Math.floor(level * 50 * (1 + level * 0.1));
+    score += levelBonus;
+    
     resetBall();
     initBricks();
     updateScoreDisplay();
     
     // 顯示下一關提示
-    showNotification(`進入第 ${level} 關！`, 'success');
+    showNotification(`進入第 ${level} 關！+${levelBonus}分`, 'success');
     
     gamePaused = true;
     setTimeout(() => {
@@ -521,24 +584,16 @@ function createPowerup(x, y) {
         radius: 6,
         type: type,
         color: type.color,
-        effect: type.effect
+        effect: type.effect,
+        points: type.points
     });
 }
 
 // 藥丸效果處理
 function handlePowerups() {
-    // 計算當前球的平均速度，用於調整藥丸下落速度
-    let avgBallSpeed = 3; // 默認值
-    if (balls.length > 0) {
-        let totalSpeed = 0;
-        balls.forEach(ball => {
-            totalSpeed += Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-        });
-        avgBallSpeed = totalSpeed / balls.length;
-    }
-    
-    // 藥丸下落速度為球平均速度的60%，確保始終慢於球速，便於玩家接到
-    const powerupFallSpeed = Math.max(avgBallSpeed * 0.6, 1.5);
+    // 設置藥丸下落速度為固定的最慢速度
+    // 根據需求1：藥丸速度降至最慢
+    const powerupFallSpeed = 1.0; // 設置為固定的最慢速度
     
     for (let i = 0; i < powerups.length; i++) {
         const p = powerups[i];
@@ -546,10 +601,22 @@ function handlePowerups() {
         if (p.y + p.radius > canvas.height) {
             powerups.splice(i, 1);
             i--;
-        } else if (p.y + p.radius >= canvas.height - paddleHeight && p.y - p.radius <= canvas.height && p.x >= paddleX && p.x <= paddleX + paddleWidth) {
-            p.effect();
-            powerups.splice(i, 1);
-            i--;
+        } else if (p.y + p.radius >= canvas.height - paddleHeight && p.y - p.radius <= canvas.height) {
+            // 增加藥丸碰撞檢測的寬容度，使其在手機上更容易接住
+            // 原始檢測：p.x >= paddleX && p.x <= paddleX + paddleWidth
+            // 新的檢測：增加一點寬容度，特別是在小螢幕設備上
+            const tolerance = canvas.width <= 480 ? 10 : 5; // 在小螢幕上增加更多寬容度
+            
+            if (p.x + tolerance >= paddleX && p.x - tolerance <= paddleX + paddleWidth) {
+                // 添加震動反饋（如果設備支持）
+                if (navigator.vibrate) {
+                    navigator.vibrate(100); // 接到藥丸時震動100毫秒
+                }
+                
+                p.effect();
+                powerups.splice(i, 1);
+                i--;
+            }
         }
     }
 }
@@ -601,6 +668,90 @@ function mouseMoveHandler(e) {
     if (relativeX > paddleWidth / 2 && relativeX < canvas.width - paddleWidth / 2) {
         paddleX = relativeX - paddleWidth / 2;
     }
+}
+
+// 觸控移動處理
+function touchMoveHandler(e) {
+    e.preventDefault(); // 防止滾動
+    
+    // 確保有觸控點
+    if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        const canvasRect = canvas.getBoundingClientRect();
+        const relativeX = touch.clientX - canvasRect.left;
+        
+        // 計算移動距離，使移動更加靈敏
+        const touchSensitivity = 1.2; // 增加靈敏度
+        
+        // 確保球拍不會超出畫布
+        if (relativeX > 0 && relativeX < canvas.width) {
+            // 使用更平滑的移動方式
+            const targetX = relativeX - paddleWidth / 2;
+            // 平滑過渡到目標位置
+            paddleX = paddleX + (targetX - paddleX) * touchSensitivity;
+            
+            // 確保球拍不會超出畫布邊界
+            paddleX = Math.max(0, Math.min(canvas.width - paddleWidth, paddleX));
+        }
+    }
+}
+
+// 觸控開始處理
+function touchStartHandler(e) {
+    e.preventDefault(); // 防止滾動
+    
+    // 檢測是否點擊在畫布上
+    const canvasRect = canvas.getBoundingClientRect();
+    const touch = e.touches[0];
+    const touchX = touch.clientX;
+    const touchY = touch.clientY;
+    
+    // 判斷觸控點是否在畫布範圍內
+    const isInsideCanvas = (
+        touchX >= canvasRect.left && 
+        touchX <= canvasRect.right && 
+        touchY >= canvasRect.top && 
+        touchY <= canvasRect.bottom
+    );
+    
+    // 如果觸控點在畫布內，處理遊戲邏輯
+    if (isInsideCanvas) {
+        // 如果遊戲尚未開始或已暫停，點擊螢幕開始/繼續遊戲
+        if (!gameOver) {
+            if (!gameStarted) {
+                startGame();
+                // 添加震動反饋（如果設備支持）
+                if (navigator.vibrate) {
+                    navigator.vibrate(50); // 短震動50毫秒
+                }
+            } else if (gamePaused) {
+                gamePaused = false;
+                draw();
+                document.getElementById('startButton').textContent = '暫停';
+                // 添加震動反饋
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+            }
+        }
+        
+        // 同時處理移動
+        touchMoveHandler(e);
+    }
+}
+
+// 觸控結束處理
+function touchEndHandler(e) {
+    // 處理觸控結束邏輯
+    
+    // 如果是遊戲中，可以添加一些特殊操作
+    // 例如：雙擊暫停遊戲（這裡不實現雙擊，因為可能會干擾正常遊戲）
+    
+    // 如果需要，可以在這裡添加多指觸控手勢的處理
+    // 例如：兩指捏合縮放等
+    
+    // 清除一些可能的觸控狀態
+    // 這裡不需要特別處理，因為移動是由touchMove事件直接控制的
 }
 
 // 繪製球
@@ -769,6 +920,13 @@ function drawPowerups() {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.fill();
         ctx.closePath();
+        
+        // 繪製藥丸分數
+        ctx.font = '8px Arial';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`+${p.points}`, p.x, p.y + p.radius + 8);
     }
 }
 

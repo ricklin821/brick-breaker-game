@@ -2,7 +2,9 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>100關敲磚塊遊戲</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -323,6 +325,75 @@
             .modal-content {
                 margin-top: 25%;
             }
+            button {
+                padding: 15px 25px; /* 更大的按鈕 */
+                margin: 12px 6px;
+                font-size: 1.1rem;
+            }
+            .game-controls {
+                font-size: 0.9rem;
+            }
+        }
+        
+        /* 防止在移動設備上選中文本 */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+        
+        /* 確保在觸控時不會有點擊延遲 */
+        canvas, button {
+            touch-action: manipulation;
+        }
+        
+        /* 手機觸控優化 */
+        @media (max-width: 480px) {
+            button {
+                padding: 18px 30px; /* 更大的按鈕 */
+                margin: 15px 8px;
+                font-size: 1.2rem;
+                min-width: 120px; /* 確保按鈕足夠大，容易點擊 */
+            }
+            
+            .game-info {
+                font-size: 1.1rem;
+                padding: 12px;
+            }
+            
+            .modal-content {
+                width: 95%;
+                padding: 30px 15px;
+            }
+            
+            input {
+                padding: 15px;
+                font-size: 1.1rem;
+                width: 90%;
+            }
+            
+            /* 確保遊戲控制說明在手機上更清晰 */
+            .game-controls {
+                font-size: 1rem;
+                padding: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .game-controls li {
+                margin: 10px 0;
+            }
+            
+            /* 增加觸控提示 */
+            .touch-hint {
+                display: block;
+                text-align: center;
+                margin: 10px 0;
+                font-size: 0.9rem;
+                color: rgba(255, 255, 255, 0.7);
+            }
         }
     </style>
 </head>
@@ -341,7 +412,10 @@
         <ul>
             <li>← → 方向鍵或滑鼠移動控制球拍</li>
             <li>空格鍵開始/暫停遊戲</li>
+            <li>觸控裝置：觸摸並滑動控制球拍</li>
+            <li>觸控裝置：點擊螢幕開始/繼續遊戲</li>
         </ul>
+        <div class="touch-hint" id="touchHint">在手機上：輕觸畫布開始遊戲，滑動控制球拍</div>
     </div>
     <div class="controls-container">
         <button id="startButton">開始遊戲</button>
