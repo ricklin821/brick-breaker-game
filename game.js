@@ -194,7 +194,7 @@ function resizeCanvas() {
     const scale = maxWidth / 480;
     
     canvas.width = maxWidth;
-    canvas.height = 640 * scale;
+    canvas.height = 480 * scale;
     
     // 調整畫布樣式，確保不會覆蓋其他元素
     canvas.style.maxWidth = '100%';
