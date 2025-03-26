@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="64" fill="#0f2027"/>
+  
+  <!-- 球拍 -->
+  <rect x="156" y="420" width="200" height="20" rx="10" fill="#4CAF50"/>
+  
+  <!-- 球 -->
+  <circle cx="256" cy="350" r="20" fill="#FFFFFF"/>
+  
+  <!-- 磚塊 - 第一行 -->
+  <rect x="96" y="100" width="80" height="30" rx="5" fill="#0095DD"/>
+  <rect x="186" y="100" width="80" height="30" rx="5" fill="#880000"/>
+  <rect x="276" y="100" width="80" height="30" rx="5" fill="#008800"/>
+  <rect x="366" y="100" width="80" height="30" rx="5" fill="#FF0000"/>
+  
+  <!-- 磚塊 - 第二行 -->
+  <rect x="96" y="140" width="80" height="30" rx="5" fill="#880000"/>
+  <rect x="186" y="140" width="80" height="30" rx="5" fill="#008800"/>
+  <rect x="276" y="140" width="80" height="30" rx="5" fill="#FF0000"/>
+  <rect x="366" y="140" width="80" height="30" rx="5" fill="#0095DD"/>
+  
+  <!-- 磚塊 - 第三行 -->
+  <rect x="96" y="180" width="80" height="30" rx="5" fill="#008800"/>
+  <rect x="186" y="180" width="80" height="30" rx="5" fill="#FF0000"/>
+  <rect x="276" y="180" width="80" height="30" rx="5" fill="#0095DD"/>
+  <rect x="366" y="180" width="80" height="30" rx="5" fill="#880000"/>
+  
+  <!-- 藥丸 -->
+  <ellipse cx="200" cy="250" rx="20" ry="12" fill="#FFFF00"/>
+  <ellipse cx="300" cy="280" rx="20" ry="12" fill="#00FFFF"/>
+</svg>
