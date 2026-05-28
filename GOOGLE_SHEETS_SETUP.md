@@ -1,77 +1,88 @@
-# Google Sheets 整合設置指南
+# Google Sheets 排行榜安全設定指南
 
-本文檔提供了詳細的步驟，幫助你設置 Google Sheets 以存儲敲磚塊遊戲的排行榜數據。
+這份指南說明如何用 Google Apps Script 儲存敲磚塊遊戲排行榜，同時避免把 Spreadsheet ID、Web App URL 或 token 提交到公開 GitHub。
 
-## 步驟 1: 創建 Google Sheets 電子表格
+> 安全提醒：靜態前端網站無法真正保護任何寫在 JavaScript 裡的 secret。此專案預設只使用瀏覽器本機排行榜。若要公開雲端排行榜，建議改用自己的後端或 serverless proxy 做驗證與限速。
 
-1. 前往 [Google Sheets](https://sheets.google.com/) 並登入你的 Google 帳戶
-2. 點擊左上角的「+」按鈕創建一個新的電子表格
-3. 將電子表格命名為「Breakout Game Leaderboard」（或任何你喜歡的名稱）
-4. 在第一行（A1-D1）添加以下標題：
+## 目前安全預設
+
+- `game.js` 不再硬編碼任何 Google Apps Script URL。
+- `google_sheet_script.js` 不再硬編碼 Spreadsheet ID。
+- Apps Script 需要 `LEADERBOARD_TOKEN` 才會接受讀取或寫入請求。
+- 玩家名稱、分數與關卡會在後端驗證，並避免 Google Sheets 公式注入。
+- PWA 快取不再快取 Apps Script 範例檔，避免瀏覽器長期留住舊設定。
+
+## 步驟 1：建立 Google Sheets
+
+1. 開啟 Google Sheets 並建立新的試算表。
+2. 建立或保留一個名為 `Leaderboard` 的工作表。
+3. 第一列請放以下欄位：
    - A1: `name`
    - B1: `score`
    - C1: `level`
    - D1: `date`
+4. 從試算表網址取得 Spreadsheet ID：
+   `https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`
 
-## 步驟 2: 設置 Google Apps Script
+## 步驟 2：設定 Apps Script
 
-1. 在你的 Google Sheets 中，點擊頂部菜單的「擴充功能」>「Apps Script」
-2. 這將打開 Google Apps Script 編輯器
-3. 刪除編輯器中的所有默認代碼
-4. 複製 `google_sheet_script.js` 中的所有代碼並粘貼到 Apps Script 編輯器中
-5. 找到以下代碼行：
-   ```javascript
-   const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
-   ```
-6. 將 `YOUR_SPREADSHEET_ID_HERE` 替換為你的 Google Sheets 的 ID
-   - 你可以從 Google Sheets 的 URL 中獲取 ID，URL 格式如：`https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`
-   - 例如，如果 URL 是 `https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit`，則 ID 是 `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms`
-7. 點擊頂部的「保存」按鈕（磁盤圖標）並為項目命名（例如「Breakout Game Leaderboard」）
+1. 在 Google Sheets 中選擇「擴充功能」>「Apps Script」。
+2. 刪除預設程式碼。
+3. 複製本 repo 的 `google_sheet_script.js` 到 Apps Script 編輯器。
+4. 開啟 Apps Script 的「專案設定」>「Script Properties」。
+5. 新增以下屬性：
 
-## 步驟 3: 部署為 Web App
+| Property | 說明 |
+|---|---|
+| `SPREADSHEET_ID` | 你的 Google Sheets ID。不要放進 GitHub。 |
+| `LEADERBOARD_TOKEN` | 自行產生的長隨機字串。建議至少 32 字元。不要放進 GitHub。 |
 
-1. 點擊編輯器頂部的「部署」>「新增部署」
-2. 在「選擇類型」下拉菜單中選擇「網頁應用程式」
-3. 設置以下選項：
-   - 執行身份：「以我的身份執行」
-   - 誰可以存取：「任何人」（這允許遊戲發送數據到你的 Google Sheets）
-4. 點擊「部署」按鈕
-5. 系統會要求你授權應用程序訪問你的 Google 帳戶，請點擊「授權訪問」
-6. 在彈出的窗口中，選擇你的 Google 帳戶
-7. 你可能會看到一個警告說「Google 尚未驗證此應用」，點擊「進階」，然後點擊「前往 [你的項目名稱]（不安全）」
-8. 點擊「允許」授予必要的權限
-9. 部署完成後，你會看到一個 Web App URL，複製這個 URL
+可以用以下方式產生 token：
 
-## 步驟 4: 更新遊戲代碼
+```bash
+openssl rand -hex 32
+```
 
-1. 打開 `game.js` 文件
-2. 找到以下兩個函數：
-   - `saveScoreToGoogleSheets`
-   - `loadLeaderboardFromGoogleSheets`
-3. 在這兩個函數中，找到以下代碼行：
-   ```javascript
-   const googleSheetsURL = 'https://script.google.com/macros/s/AKfycbxyqes9bLwO0MmIOJeH2x0cSwmVSdSZ3HXa-Dsltnwk5uGfMQ5RVQaZVxJtn6_EaQGzQg/exec';
-   ```
-4. 將 URL 替換為你在步驟 3 中獲得的 Web App URL
+## 步驟 3：部署為 Web App
 
-## 測試整合
+1. 點擊「部署」>「新增部署」。
+2. 類型選擇「網頁應用程式」。
+3. 執行身分選擇「以我的身份執行」。
+4. 存取權限若設定為「任何人」，請務必保留 `LEADERBOARD_TOKEN` 驗證。
+5. 部署後複製 Web App URL。
 
-1. 打開遊戲並玩一局
-2. 當遊戲結束時，輸入你的名字並點擊「保存分數」
-3. 檢查你的 Google Sheets，確認分數已被添加
-4. 點擊「排行榜」按鈕，確認排行榜顯示了來自 Google Sheets 的數據
+## 步驟 4：前端設定方式
+
+不要把真正的 Web App URL 或 token commit 到公開 repo。
+
+若只是自己測試，可以在瀏覽器 console 暫時設定：
+
+```javascript
+window.BREAKOUT_LEADERBOARD_ENDPOINT = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+window.BREAKOUT_LEADERBOARD_TOKEN = 'YOUR_RANDOM_TOKEN';
+```
+
+如果要正式公開，建議建立自己的後端 proxy，讓前端只呼叫你的後端，由後端保存 Apps Script URL 和 token，並加入：
+
+- rate limit
+- 驗證來源
+- 分數合理範圍檢查
+- reCAPTCHA 或其他濫用防護
+
+## 不建議的做法
+
+請不要把以下內容放進公開檔案：
+
+```javascript
+const googleSheetsURL = 'https://script.google.com/macros/s/.../exec';
+const token = '...';
+const spreadsheetId = '...';
+```
+
+公開前端程式碼就像玻璃展示櫃，能執行的字串大家都看得到。
 
 ## 故障排除
 
-如果你遇到問題：
-
-1. 確保你的 Web App URL 正確無誤
-2. 檢查瀏覽器控制台是否有錯誤消息
-3. 確保你已授予應用程序正確的權限
-4. 如果使用 Chrome，可能需要允許第三方 Cookie
-
-## 注意事項
-
-- 此設置使用 Google Apps Script 的無伺服器功能，完全免費
-- 每天有一定的配額限制，但對於一般使用足夠
-- 如果你的遊戲有大量用戶，可能需要考慮更高級的解決方案
+- 如果排行榜只顯示本機資料，代表沒有設定 `window.BREAKOUT_LEADERBOARD_ENDPOINT`。
+- 如果雲端讀寫失敗，確認 Apps Script 的 `SPREADSHEET_ID` 和 `LEADERBOARD_TOKEN` 是否正確。
+- 如果舊版仍出現，請重新整理頁面或清除 PWA 快取。
