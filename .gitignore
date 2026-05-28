@@ -1,0 +1,5 @@
+# Local-only leaderboard configuration. Do not commit real endpoints or tokens.
+leaderboard-config.js
+*.local
+.env
+.env.*
