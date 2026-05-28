@@ -1,180 +1,178 @@
 /**
  * Google Apps Script for Breakout Game Leaderboard
- * 
- * 這個腳本用於處理敲磚塊遊戲的排行榜數據
- * 將其部署為Web App後，可以通過遊戲將分數保存到Google Sheets
+ *
+ * 安全預設：
+ * 1. 不把 Spreadsheet ID 或 token 寫在公開程式碼裡。
+ * 2. 透過 Script Properties 設定 SPREADSHEET_ID 與 LEADERBOARD_TOKEN。
+ * 3. 驗證輸入、限制欄位長度、避免 Google Sheets 公式注入。
  */
 
-// 設置Google Sheets ID (需要替換為你的實際Sheets ID)
-const SPREADSHEET_ID = 'AKfycbww-tH1PAJ0YWb4VRbfxGParQDW_J9dFx5hOdhuFYLt_s4LIVBtCI2hVVPR3-RPg3qlPg';
 const SHEET_NAME = 'Leaderboard';
+const MAX_NAME_LENGTH = 24;
+const MAX_SCORE = 1000000;
+const MAX_LEVEL = 100;
+const MAX_ROWS_TO_KEEP = 100;
 
-/**
- * 處理Web請求的主函數
- */
 function doGet(e) {
-  // 檢查是否有action參數
-  if (!e.parameter.action) {
-    return ContentService.createTextOutput(JSON.stringify({
-      'error': '缺少action參數'
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  // 根據action參數執行不同操作
-  switch (e.parameter.action) {
-    case 'getScores':
-      return getScores();
-    default:
-      return ContentService.createTextOutput(JSON.stringify({
-        'error': '未知的action參數: ' + e.parameter.action
-      })).setMimeType(ContentService.MimeType.JSON);
+  try {
+    if (!isAuthorized_(e)) return json_({ error: 'unauthorized' }, 403);
+
+    const action = e && e.parameter ? e.parameter.action : '';
+    if (action === 'getScores') return getScores_();
+    return json_({ error: 'unknown action' }, 400);
+  } catch (error) {
+    return json_({ error: 'server configuration error' }, 500);
   }
 }
 
-/**
- * 處理POST請求
- */
 function doPost(e) {
   try {
-    // 解析請求數據
-    let data;
-    try {
-      data = JSON.parse(e.postData.contents);
-    } catch (error) {
-      return ContentService.createTextOutput(JSON.stringify({
-        'error': '無效的JSON數據'
-      })).setMimeType(ContentService.MimeType.JSON);
+    const payload = parsePayload_(e);
+    if (!isAuthorized_(e, payload)) return json_({ error: 'unauthorized' }, 403);
+
+    if (payload.action === 'addScore') {
+      return addScore_(payload.data);
     }
-    
-    // 檢查action參數
-    if (!data.action) {
-      return ContentService.createTextOutput(JSON.stringify({
-        'error': '缺少action參數'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 根據action參數執行不同操作
-    switch (data.action) {
-      case 'addScore':
-        return addScore(data.data);
-      default:
-        return ContentService.createTextOutput(JSON.stringify({
-          'error': '未知的action參數: ' + data.action
-        })).setMimeType(ContentService.MimeType.JSON);
-    }
+
+    return json_({ error: 'unknown action' }, 400);
   } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      'error': '處理請求時發生錯誤: ' + error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    return json_({ error: 'bad request or server configuration error' }, 400);
   }
 }
 
-/**
- * 獲取排行榜數據
- */
-function getScores() {
+function getScores_() {
+  const sheet = getLeaderboardSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) return json_([]);
+
+  const scores = values.slice(1)
+    .map(row => ({
+      name: sanitizeName_(row[0]),
+      score: sanitizeInteger_(row[1], 0, MAX_SCORE, 0),
+      level: sanitizeInteger_(row[2], 1, MAX_LEVEL, 1),
+      date: row[3] || ''
+    }))
+    .filter(row => row.name && Number.isFinite(row.score))
+    .sort((a, b) => b.score - a.score || b.level - a.level)
+    .slice(0, MAX_ROWS_TO_KEEP);
+
+  return json_(scores);
+}
+
+function addScore_(scoreData) {
+  const score = validateScore_(scoreData);
+  if (!score) return json_({ error: 'invalid score' }, 400);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+
   try {
-    // 獲取電子表格和工作表
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = spreadsheet.getSheetByName(SHEET_NAME);
-    
-    // 檢查工作表是否存在
-    if (!sheet) {
-      return ContentService.createTextOutput(JSON.stringify({
-        'error': '找不到指定的工作表'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 獲取數據範圍
-    const dataRange = sheet.getDataRange();
-    const values = dataRange.getValues();
-    
-    // 檢查是否有數據
-    if (values.length <= 1) { // 只有標題行或沒有數據
-      return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 提取標題行
-    const headers = values[0];
-    
-    // 將數據轉換為對象數組
-    const scores = [];
-    for (let i = 1; i < values.length; i++) {
-      const row = values[i];
-      const score = {};
-      
-      // 將每一列與對應的標題關聯
-      for (let j = 0; j < headers.length; j++) {
-        score[headers[j]] = row[j];
-      }
-      
-      scores.push(score);
-    }
-    
-    // 返回JSON格式的數據
-    return ContentService.createTextOutput(JSON.stringify(scores))
+    const sheet = getLeaderboardSheet_();
+    sheet.appendRow([score.name, score.score, score.level, score.date]);
+    trimAndSort_(sheet);
+  } finally {
+    lock.releaseLock();
+  }
+
+  return json_({ success: true });
+}
+
+function getLeaderboardSheet_() {
+  const spreadsheetId = getRequiredProperty_('SPREADSHEET_ID');
+  const spreadsheet = SpreadsheetApp.openById(spreadsheetId);
+  let sheet = spreadsheet.getSheetByName(SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SHEET_NAME);
+    sheet.appendRow(['name', 'score', 'level', 'date']);
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['name', 'score', 'level', 'date']);
+  }
+
+  return sheet;
+}
+
+function trimAndSort_(sheet) {
+  const values = sheet.getDataRange().getValues();
+  const rows = values.slice(1)
+    .map(row => [
+      sanitizeName_(row[0]),
+      sanitizeInteger_(row[1], 0, MAX_SCORE, 0),
+      sanitizeInteger_(row[2], 1, MAX_LEVEL, 1),
+      row[3] || new Date().toISOString()
+    ])
+    .filter(row => row[0])
+    .sort((a, b) => b[1] - a[1] || b[2] - a[2])
+    .slice(0, MAX_ROWS_TO_KEEP);
+
+  sheet.clear();
+  sheet.appendRow(['name', 'score', 'level', 'date']);
+  if (rows.length) sheet.getRange(2, 1, rows.length, 4).setValues(rows);
+}
+
+function validateScore_(scoreData) {
+  if (!scoreData || typeof scoreData !== 'object') return null;
+
+  const name = sanitizeName_(scoreData.name);
+  const score = sanitizeInteger_(scoreData.score, 0, MAX_SCORE, NaN);
+  const level = sanitizeInteger_(scoreData.level, 1, MAX_LEVEL, NaN);
+
+  if (!name || !Number.isFinite(score) || !Number.isFinite(level)) return null;
+
+  return {
+    name,
+    score,
+    level,
+    date: new Date().toISOString()
+  };
+}
+
+function sanitizeName_(value) {
+  let name = String(value || '')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, MAX_NAME_LENGTH);
+
+  if (!name) name = '匿名玩家';
+  if (/^[=+\-@]/.test(name)) name = "'" + name;
+  return name;
+}
+
+function sanitizeInteger_(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(number)));
+}
+
+function parsePayload_(e) {
+  if (!e || !e.postData || !e.postData.contents) return {};
+  return JSON.parse(e.postData.contents);
+}
+
+function isAuthorized_(e, payload) {
+  const expectedToken = getRequiredProperty_('LEADERBOARD_TOKEN');
+  const queryToken = e && e.parameter ? e.parameter.token : '';
+  const bodyToken = payload && payload.token ? payload.token : '';
+  return Boolean(expectedToken && (queryToken === expectedToken || bodyToken === expectedToken));
+}
+
+function getRequiredProperty_(name) {
+  const value = PropertiesService.getScriptProperties().getProperty(name);
+  if (!value) throw new Error('Missing required Script Property: ' + name);
+  return value;
+}
+
+function json_(payload, statusCode) {
+  const body = Object.assign({}, Array.isArray(payload) ? { data: payload } : payload);
+  if (statusCode) body.status = statusCode;
+
+  if (Array.isArray(payload)) {
+    return ContentService.createTextOutput(JSON.stringify(payload))
       .setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      'error': '獲取排行榜數據時發生錯誤: ' + error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
   }
-}
 
-/**
- * 添加分數到排行榜
- */
-function addScore(scoreData) {
-  try {
-    // 驗證分數數據
-    if (!scoreData || !scoreData.name || !scoreData.score || !scoreData.level) {
-      return ContentService.createTextOutput(JSON.stringify({
-        'error': '缺少必要的分數數據'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // 獲取電子表格和工作表
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName(SHEET_NAME);
-    
-    // 如果工作表不存在，則創建一個
-    if (!sheet) {
-      sheet = spreadsheet.insertSheet(SHEET_NAME);
-      // 添加標題行
-      sheet.appendRow(['name', 'score', 'level', 'date']);
-    }
-    
-    // 添加分數數據
-    sheet.appendRow([
-      scoreData.name,
-      scoreData.score,
-      scoreData.level,
-      new Date().toISOString()
-    ]);
-    
-    // 排序數據（按分數降序）
-    const dataRange = sheet.getDataRange();
-    const values = dataRange.getValues();
-    
-    // 提取標題行
-    const headers = values.shift();
-    
-    // 按分數降序排序
-    values.sort((a, b) => b[1] - a[1]); // 假設分數在第2列（索引1）
-    
-    // 清除工作表並重新填充數據
-    sheet.clear();
-    sheet.appendRow(headers);
-    values.forEach(row => sheet.appendRow(row));
-    
-    // 返回成功消息
-    return ContentService.createTextOutput(JSON.stringify({
-      'success': true,
-      'message': '分數已成功添加到排行榜'
-    })).setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      'error': '添加分數時發生錯誤: ' + error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
+  return ContentService.createTextOutput(JSON.stringify(body))
+    .setMimeType(ContentService.MimeType.JSON);
 }
